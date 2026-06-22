@@ -1,5 +1,7 @@
 # Ambiart
 
+A google streaming OS wallpaper manager for National Gallery of Art artworks.
+
 Ambiart is a lightweight wallpaper API for Google TV-style ambient art screens. It serves curated image metadata, simple randomization, and TV-friendly response shapes, with optional National Gallery of Art Open Data integration.
 
 ## Features
@@ -133,18 +135,3 @@ The script downloads a random landscape NGA image from Ambiart, pushes it to `/s
 ## National Gallery of Art Data
 
 Ambiart uses the official [National Gallery of Art Open Data repository](https://github.com/NationalGalleryOfArt/opendata) and its [IIIF image API](https://api.nga.gov/iiif/). The NGA dataset is released as CSV under CC0 and contains records for 130,000+ artworks. Image files are not included in that dataset, but `published_images.csv` contains public IIIF image references that Ambiart exposes as `imageUrl` and `thumbnailUrl`.
-
-## Publish to GitHub
-
-This workspace has Git available through Codex's bundled runtime, but the GitHub connector exposed in this session does not include a create-repository action. To publish after creating the repo on GitHub:
-
-```bash
-git remote add origin https://github.com/AndrewP-Cloud/Ambiart.git
-git push -u origin main
-```
-
-If you install GitHub CLI locally, this single command creates and pushes it:
-
-```bash
-gh repo create AndrewP-Cloud/Ambiart --private --source . --remote origin --push
-```
