@@ -52,6 +52,16 @@ export function createServer({ baseUrl = process.env.AMBIART_BASE_URL, ngaClient
         return;
       }
 
+      if (requestUrl.pathname === "/v1/nga/options") {
+        sendJson(response, 200, {
+          data: await ngaClient.options(),
+          links: {
+            source: "https://github.com/NationalGalleryOfArt/opendata/blob/main/documentation/Data%20Dictionary.txt"
+          }
+        });
+        return;
+      }
+
       if (requestUrl.pathname === "/v1/nga/wallpapers/random") {
         const wallpaper = await ngaClient.random(Object.fromEntries(requestUrl.searchParams));
         sendJson(response, wallpaper ? 200 : 404, wallpaper ? { data: withDownloadUrl(wallpaper, origin) } : { error: "not_found" });

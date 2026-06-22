@@ -43,6 +43,7 @@ test("NGA wallpaper endpoint uses injected provider", async () => {
   const ngaClient = {
     list: async () => [wallpaper],
     getById: async () => null,
+    options: async () => ({ artists: ["Alma Thomas"], categories: ["painting"], orientations: ["landscape"] }),
     random: async () => null
   };
   const { baseUrl, close } = await listen({ ngaClient });
@@ -60,10 +61,39 @@ test("NGA wallpaper endpoint uses injected provider", async () => {
   }
 });
 
+test("NGA options endpoint exposes filters", async () => {
+  const ngaClient = {
+    list: async () => [],
+    getById: async () => null,
+    options: async () => ({
+      artists: ["Alma Thomas"],
+      categories: ["painting"],
+      orientations: ["landscape"],
+      sourceFields: {
+        artist: "objects.csv attribution"
+      }
+    }),
+    random: async () => null
+  };
+  const { baseUrl, close } = await listen({ ngaClient });
+
+  try {
+    const response = await fetch(`${baseUrl}/v1/nga/options`);
+    const payload = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(payload.data.artists, ["Alma Thomas"]);
+    assert.equal(payload.data.sourceFields.artist, "objects.csv attribution");
+  } finally {
+    await close();
+  }
+});
+
 test("NGA JPEG endpoint redirects to sized image", async () => {
   const ngaClient = {
     list: async () => [],
     getById: async () => null,
+    options: async () => ({}),
     random: async () => ({
       id: "nga-1-img-a",
       metadata: {

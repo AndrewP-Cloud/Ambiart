@@ -1,5 +1,6 @@
 import { parseCsv } from "./csv.js";
 
+export const NGA_OBJECTS_URL = "https://raw.githubusercontent.com/NationalGalleryOfArt/opendata/main/data/objects.csv";
 export const NGA_IMAGES_URL = "https://raw.githubusercontent.com/NationalGalleryOfArt/opendata/main/data/published_images.csv";
 
 const DEFAULT_LIMIT = 24;
@@ -9,8 +10,10 @@ const DEFAULT_SCAN_LIMIT = 500;
 
 export function createNgaClient({
   fetchImpl = globalThis.fetch,
+  objectsUrl = process.env.NGA_OBJECTS_URL ?? NGA_OBJECTS_URL,
   imagesUrl = process.env.NGA_IMAGES_URL ?? NGA_IMAGES_URL,
   scanLimit = Number.parseInt(process.env.NGA_SCAN_LIMIT ?? `${DEFAULT_SCAN_LIMIT}`, 10),
+  objectScanLimit = Number.parseInt(process.env.NGA_OBJECT_SCAN_LIMIT ?? "200000", 10),
   cacheTtlMs = CACHE_TTL_MS
 } = {}) {
   if (!fetchImpl) {
@@ -26,8 +29,10 @@ export function createNgaClient({
     }
 
     const images = await fetchCsvRecords(fetchImpl, imagesUrl, scanLimit);
+    const objectIds = new Set(images.map((image) => read(image, "depictstmsobjectid", "depictsTmsObjectId")).filter(Boolean));
+    const objectsById = await fetchObjectsById(fetchImpl, objectsUrl, objectIds, objectScanLimit);
     const wallpapers = images
-      .map((image) => mapImageToWallpaper(image))
+      .map((image) => mapImageToWallpaper(image, objectsById.get(read(image, "depictstmsobjectid", "depictsTmsObjectId"))))
       .filter(Boolean);
 
     cache = {
@@ -42,15 +47,17 @@ export function createNgaClient({
     async list(query = {}) {
       const wallpapers = await loadCatalog();
       const limit = clampLimit(query.limit);
+      const artist = normalize(query.artist);
       const category = normalize(query.category);
       const orientation = normalize(query.orientation);
       const q = normalize(query.q);
 
       return wallpapers.filter((wallpaper) => {
-        const categoryMatches = !category || wallpaper.category === category;
+        const artistMatches = !artist || normalize(wallpaper.artist)?.includes(artist);
+        const categoryMatches = !category || getCategoryValues(wallpaper).includes(category);
         const orientationMatches = !orientation || wallpaper.orientation === orientation;
-        const queryMatches = !q || `${wallpaper.title} ${wallpaper.artist} ${wallpaper.metadata.assistiveText}`.toLowerCase().includes(q);
-        return categoryMatches && orientationMatches && queryMatches;
+        const queryMatches = !q || `${wallpaper.title} ${wallpaper.artist} ${wallpaper.category} ${wallpaper.metadata.assistiveText}`.toLowerCase().includes(q);
+        return artistMatches && categoryMatches && orientationMatches && queryMatches;
       }).slice(0, limit);
     },
 
@@ -68,13 +75,28 @@ export function createNgaClient({
       return wallpapers[Math.floor(random() * wallpapers.length)];
     },
 
+    async options() {
+      const wallpapers = await loadCatalog();
+
+      return {
+        artists: uniqueValues(wallpapers.map((wallpaper) => wallpaper.artist)),
+        categories: uniqueValues(wallpapers.flatMap(getCategoryValues)),
+        orientations: uniqueValues(wallpapers.map((wallpaper) => wallpaper.orientation)),
+        sourceFields: {
+          artist: "objects.csv attribution",
+          category: "objects.csv visualBrowserClassification, classification, and subClassification",
+          orientation: "computed from published_images.csv width and height"
+        }
+      };
+    },
+
     clearCache() {
       cache = null;
     }
   };
 }
 
-function mapImageToWallpaper(image) {
+function mapImageToWallpaper(image, object = {}) {
   const objectId = read(image, "depictstmsobjectid", "depictsTmsObjectId", "objectid", "objectID");
   const imageId = read(image, "uuid", "imageid", "imageID") || objectId;
   const iiifUrl = read(image, "iiifurl", "iiifURL", "imageurl", "imageURL", "url");
@@ -89,29 +111,56 @@ function mapImageToWallpaper(image) {
   const width = toNumber(read(image, "width"));
   const height = toNumber(read(image, "height"));
   const assistiveText = read(image, "assistivetext", "assistiveText");
-  const title = `National Gallery artwork ${objectId}`;
+  const title = read(object, "title") || `National Gallery artwork ${objectId}`;
+  const artist = read(object, "attribution") || "National Gallery of Art";
+  const classification = read(object, "classification");
+  const subClassification = read(object, "subclassification", "subClassification");
+  const visualBrowserClassification = read(object, "visualbrowserclassification", "visualBrowserClassification");
+  const category = normalize(visualBrowserClassification || classification || subClassification) ?? "artwork";
 
   return {
     id: `nga-${objectId}-${slug(imageId)}`,
     source: "national-gallery-of-art",
     sourceObjectId: objectId,
     title,
-    artist: "National Gallery of Art",
-    category: "artwork",
+    artist,
+    category,
     orientation: getOrientation(width, height),
     dominantColor: "#1f2933",
     imageUrl,
     thumbnailUrl,
-    attribution: `${title}. National Gallery of Art, Washington.`,
+    attribution: `${title}${artist ? `, ${artist}` : ""}. National Gallery of Art, Washington.`,
     metadata: {
+      accessionNumber: read(object, "accessionnum", "accessionNum"),
       assistiveText,
+      classification,
+      date: read(object, "displaydate", "displayDate"),
       height,
       iiifUrl,
+      medium: read(object, "medium"),
       openAccess: openAccess !== "0",
+      subClassification,
+      visualBrowserClassification,
       viewType: read(image, "viewtype", "viewType"),
       width
     }
   };
+}
+
+async function fetchObjectsById(fetchImpl, url, objectIds, maxRows) {
+  if (objectIds.size === 0) {
+    return new Map();
+  }
+
+  const records = await fetchMatchingCsvRecords(
+    fetchImpl,
+    url,
+    (row) => objectIds.has(read(row, "objectid", "objectID")),
+    (matches) => matches.length >= objectIds.size,
+    maxRows
+  );
+
+  return new Map(records.map((object) => [read(object, "objectid", "objectID"), object]));
 }
 
 async function fetchCsvRecords(fetchImpl, url, maxRows) {
@@ -125,6 +174,115 @@ async function fetchCsvRecords(fetchImpl, url, maxRows) {
   }
 
   return parseCsv(await readCsvPrefix(response.body, maxRows)).slice(0, maxRows);
+}
+
+async function fetchMatchingCsvRecords(fetchImpl, url, isMatch, shouldStop, maxRows) {
+  const response = await fetchImpl(url);
+  if (!response.ok) {
+    throw new Error(`NGA fetch failed for ${url}: ${response.status}`);
+  }
+
+  if (!response.body?.getReader) {
+    const matches = [];
+    for (const row of parseCsv(await response.text()).slice(0, maxRows)) {
+      if (isMatch(row)) {
+        matches.push(row);
+        if (shouldStop(matches)) {
+          break;
+        }
+      }
+    }
+    return matches;
+  }
+
+  const matches = [];
+  let scannedRows = 0;
+  await streamCsvRows(response.body, (row) => {
+    if (scannedRows >= maxRows) {
+      return false;
+    }
+
+    scannedRows += 1;
+    if (isMatch(row)) {
+      matches.push(row);
+    }
+
+    return !shouldStop(matches);
+  });
+
+  return matches;
+}
+
+async function streamCsvRows(body, onRow) {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let headers = null;
+  let row = [];
+  let field = "";
+  let quoted = false;
+  let keepReading = true;
+
+  function emitRow(values) {
+    if (!headers) {
+      headers = values.map((header) => header.trim());
+      return true;
+    }
+
+    if (!values.some(Boolean)) {
+      return true;
+    }
+
+    const record = Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ""]));
+    return onRow(record);
+  }
+
+  while (keepReading) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+
+    const chunk = decoder.decode(value, { stream: true });
+    for (let index = 0; index < chunk.length; index += 1) {
+      const char = chunk[index];
+      const next = chunk[index + 1];
+
+      if (quoted) {
+        if (char === "\"" && next === "\"") {
+          field += "\"";
+          index += 1;
+        } else if (char === "\"") {
+          quoted = false;
+        } else {
+          field += char;
+        }
+        continue;
+      }
+
+      if (char === "\"") {
+        quoted = true;
+      } else if (char === ",") {
+        row.push(field);
+        field = "";
+      } else if (char === "\n") {
+        row.push(field);
+        keepReading = emitRow(row);
+        row = [];
+        field = "";
+        if (!keepReading) {
+          await reader.cancel();
+          break;
+        }
+      } else if (char !== "\r") {
+        field += char;
+      }
+    }
+  }
+
+  if (keepReading && (field.length > 0 || row.length > 0)) {
+    row.push(field);
+    emitRow(row);
+  }
 }
 
 async function readCsvPrefix(body, maxRows) {
@@ -208,6 +366,19 @@ function toNumber(value) {
 
 function slug(value) {
   return String(value).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function getCategoryValues(wallpaper) {
+  return uniqueValues([
+    wallpaper.category,
+    wallpaper.metadata.classification,
+    wallpaper.metadata.subClassification,
+    wallpaper.metadata.visualBrowserClassification
+  ]).map(normalize).filter(Boolean);
+}
+
+function uniqueValues(values) {
+  return [...new Set(values.filter(Boolean))].sort((left, right) => left.localeCompare(right));
 }
 
 function getIiifImageUrl(iiifUrl, width) {

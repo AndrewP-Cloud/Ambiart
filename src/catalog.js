@@ -41,6 +41,7 @@ export function getManifest(baseUrl) {
       wallpapers: `${baseUrl}/v1/wallpapers`,
       random: `${baseUrl}/v1/wallpapers/random`,
       ngaWallpapers: `${baseUrl}/v1/nga/wallpapers`,
+      ngaOptions: `${baseUrl}/v1/nga/options`,
       ngaRandom: `${baseUrl}/v1/nga/wallpapers/random`,
       ngaRandomImage: `${baseUrl}/v1/nga/wallpapers/random.jpg`
     },

@@ -11,6 +11,7 @@ Ambiart is a lightweight wallpaper API for Google TV-style ambient art screens. 
 - `GET /v1/wallpapers/random` return a random wallpaper
 - `GET /v1/wallpapers/:id` return one wallpaper
 - `GET /v1/nga/wallpapers` list National Gallery of Art wallpapers
+- `GET /v1/nga/options` list available National Gallery filter values
 - `GET /v1/nga/wallpapers/random` return a random National Gallery artwork
 - `GET /v1/nga/wallpapers/random.jpg` redirect directly to a TV-sized NGA JPEG
 - `GET /v1/nga/wallpapers/:id` return one National Gallery artwork
@@ -34,12 +35,14 @@ Create a `.env` file or set environment variables directly:
 PORT=8787
 AMBIART_BASE_URL=https://your-domain.example
 NGA_IMAGES_URL=https://raw.githubusercontent.com/NationalGalleryOfArt/opendata/main/data/published_images.csv
+NGA_OBJECTS_URL=https://raw.githubusercontent.com/NationalGalleryOfArt/opendata/main/data/objects.csv
 NGA_SCAN_LIMIT=500
+NGA_OBJECT_SCAN_LIMIT=200000
 ```
 
 `AMBIART_BASE_URL` is used when clients need absolute image and API URLs.
 
-The NGA URL defaults to the official National Gallery of Art Open Data image CSV on GitHub. Ambiart streams a bounded slice of `published_images.csv`, maps each row into the wallpaper shape, builds TV-friendly IIIF image URLs, and caches the result in memory for six hours. Increase `NGA_SCAN_LIMIT` if you want Ambiart to scan deeper into the dataset.
+The NGA URLs default to the official National Gallery of Art Open Data CSV files on GitHub. Ambiart streams a bounded slice of `published_images.csv`, finds matching records in `objects.csv`, maps each row into the wallpaper shape, builds TV-friendly IIIF image URLs, and caches the result in memory for six hours. Increase `NGA_SCAN_LIMIT` if you want Ambiart to scan deeper into the image dataset.
 
 ## API Examples
 
@@ -64,7 +67,13 @@ curl "http://localhost:8787/v1/wallpapers/aurora-drift"
 National Gallery artworks:
 
 ```bash
-curl "http://localhost:8787/v1/nga/wallpapers?orientation=landscape&limit=10"
+curl "http://localhost:8787/v1/nga/wallpapers?artist=Alma%20Thomas&category=painting&orientation=landscape&limit=10"
+```
+
+Available National Gallery filter values:
+
+```bash
+curl "http://localhost:8787/v1/nga/options"
 ```
 
 Random National Gallery artwork:
@@ -135,3 +144,21 @@ The script downloads a random landscape NGA image from Ambiart, pushes it to `/s
 ## National Gallery of Art Data
 
 Ambiart uses the official [National Gallery of Art Open Data repository](https://github.com/NationalGalleryOfArt/opendata) and its [IIIF image API](https://api.nga.gov/iiif/). The NGA dataset is released as CSV under CC0 and contains records for 130,000+ artworks. Image files are not included in that dataset, but `published_images.csv` contains public IIIF image references that Ambiart exposes as `imageUrl` and `thumbnailUrl`.
+
+### National Gallery Filter Options
+
+Ambiart exposes the current filter values from the scanned NGA feed at `GET /v1/nga/options`. Because the NGA dataset is updated frequently and Ambiart intentionally scans a bounded image window, these options can change when `NGA_SCAN_LIMIT` changes or the upstream CSV refreshes.
+
+Supported query parameters for `GET /v1/nga/wallpapers`, `GET /v1/nga/wallpapers/random`, and `GET /v1/nga/wallpapers/random.jpg`:
+
+- `artist`: partial, case-insensitive match against `objects.csv` `attribution`
+- `category`: case-insensitive match against `objects.csv` `visualBrowserClassification`, `classification`, or `subClassification`
+- `orientation`: exact match against Ambiart's computed `landscape`, `portrait`, or `square` value from `published_images.csv` `width` and `height`
+- `q`: partial, case-insensitive text search across title, artist, category, and assistive text
+- `limit`: number of JSON records to return, clamped from `1` to `100`
+- `width`: direct `.jpg` endpoints only, IIIF image width clamped from `200` to `4096`
+
+Relevant NGA Open Data fields Ambiart uses:
+
+- `published_images.csv`: `iiifURL`, `iiifThumbURL`, `width`, `height`, `openaccess`, `depictstmsobjectid`, `assistivetext`, `viewtype`
+- `objects.csv`: `objectID`, `title`, `displayDate`, `medium`, `attribution`, `classification`, `subClassification`, `visualBrowserClassification`, `accessionNum`

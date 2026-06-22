@@ -67,6 +67,12 @@ paths:
       parameters:
         - name: category
           in: query
+          description: Matches NGA visualBrowserClassification, classification, or subClassification.
+          schema:
+            type: string
+        - name: artist
+          in: query
+          description: Partial match against NGA attribution.
           schema:
             type: string
         - name: orientation
@@ -79,6 +85,7 @@ paths:
               - square
         - name: q
           in: query
+          description: Partial text search across title, artist, category, and assistive text.
           schema:
             type: string
         - name: limit
@@ -90,9 +97,32 @@ paths:
       responses:
         "200":
           description: National Gallery wallpaper list
+  /v1/nga/options:
+    get:
+      summary: List available National Gallery of Art filter options
+      responses:
+        "200":
+          description: Available artist, category, and orientation filter values from the scanned NGA feed
   /v1/nga/wallpapers/random:
     get:
       summary: Random National Gallery of Art wallpaper
+      parameters:
+        - name: artist
+          in: query
+          schema:
+            type: string
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: orientation
+          in: query
+          schema:
+            type: string
+            enum:
+              - landscape
+              - portrait
+              - square
       responses:
         "200":
           description: Wallpaper response
@@ -116,6 +146,14 @@ paths:
             type: integer
             minimum: 200
             maximum: 4096
+        - name: artist
+          in: query
+          schema:
+            type: string
+        - name: category
+          in: query
+          schema:
+            type: string
       responses:
         "302":
           description: Redirect to an NGA IIIF JPEG
