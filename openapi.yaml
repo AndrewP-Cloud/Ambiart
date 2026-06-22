@@ -61,3 +61,97 @@ paths:
           description: Wallpaper response
         "404":
           description: Wallpaper not found
+  /v1/nga/wallpapers:
+    get:
+      summary: List National Gallery of Art wallpapers
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: orientation
+          in: query
+          schema:
+            type: string
+            enum:
+              - landscape
+              - portrait
+              - square
+        - name: q
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: National Gallery wallpaper list
+  /v1/nga/wallpapers/random:
+    get:
+      summary: Random National Gallery of Art wallpaper
+      responses:
+        "200":
+          description: Wallpaper response
+        "404":
+          description: No National Gallery wallpaper matched filters
+  /v1/nga/wallpapers/random.jpg:
+    get:
+      summary: Redirect to a random National Gallery of Art JPEG
+      parameters:
+        - name: orientation
+          in: query
+          schema:
+            type: string
+            enum:
+              - landscape
+              - portrait
+              - square
+        - name: width
+          in: query
+          schema:
+            type: integer
+            minimum: 200
+            maximum: 4096
+      responses:
+        "302":
+          description: Redirect to an NGA IIIF JPEG
+        "404":
+          description: No National Gallery wallpaper matched filters
+  /v1/nga/wallpapers/{id}:
+    get:
+      summary: Get National Gallery of Art wallpaper by id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Wallpaper response
+        "404":
+          description: Wallpaper not found
+  /v1/nga/wallpapers/{id}.jpg:
+    get:
+      summary: Redirect to a National Gallery of Art JPEG by id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: width
+          in: query
+          schema:
+            type: integer
+            minimum: 200
+            maximum: 4096
+      responses:
+        "302":
+          description: Redirect to an NGA IIIF JPEG
+        "404":
+          description: Wallpaper not found

@@ -5,3 +5,5 @@ coverage/
 dist/
 npm-debug.log*
 .pnpm-store/
+*.jpg
+*.jpeg

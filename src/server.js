@@ -3,11 +3,12 @@ import { readFile } from "node:fs/promises";
 import { extname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { getManifest, getRandomWallpaper, getWallpaperById, listWallpapers } from "./catalog.js";
+import { createNgaClient, getSizedNgaImageUrl } from "./nga.js";
 
 const PORT = Number.parseInt(process.env.PORT ?? "8787", 10);
 const PUBLIC_DIR = fileURLToPath(new URL("../public", import.meta.url));
 
-export function createServer({ baseUrl = process.env.AMBIART_BASE_URL } = {}) {
+export function createServer({ baseUrl = process.env.AMBIART_BASE_URL, ngaClient = createNgaClient() } = {}) {
   return http.createServer(async (request, response) => {
     try {
       const requestUrl = new URL(request.url ?? "/", `http://${request.headers.host}`);
@@ -35,6 +36,45 @@ export function createServer({ baseUrl = process.env.AMBIART_BASE_URL } = {}) {
             self: `${origin}${requestUrl.pathname}${requestUrl.search}`
           }
         });
+        return;
+      }
+
+      if (requestUrl.pathname === "/v1/nga/wallpapers") {
+        sendJson(response, 200, {
+          data: (await ngaClient.list(Object.fromEntries(requestUrl.searchParams))).map((wallpaper) => {
+            return withDownloadUrl(wallpaper, origin);
+          }),
+          links: {
+            self: `${origin}${requestUrl.pathname}${requestUrl.search}`,
+            source: "https://github.com/NationalGalleryOfArt/opendata"
+          }
+        });
+        return;
+      }
+
+      if (requestUrl.pathname === "/v1/nga/wallpapers/random") {
+        const wallpaper = await ngaClient.random(Object.fromEntries(requestUrl.searchParams));
+        sendJson(response, wallpaper ? 200 : 404, wallpaper ? { data: withDownloadUrl(wallpaper, origin) } : { error: "not_found" });
+        return;
+      }
+
+      if (requestUrl.pathname === "/v1/nga/wallpapers/random.jpg") {
+        const wallpaper = await ngaClient.random(Object.fromEntries(requestUrl.searchParams));
+        sendImageRedirect(response, wallpaper, requestUrl.searchParams.get("width"));
+        return;
+      }
+
+      const ngaImageMatch = requestUrl.pathname.match(/^\/v1\/nga\/wallpapers\/([\w-]+)\.jpg$/);
+      if (ngaImageMatch) {
+        const wallpaper = await ngaClient.getById(ngaImageMatch[1]);
+        sendImageRedirect(response, wallpaper, requestUrl.searchParams.get("width"));
+        return;
+      }
+
+      const ngaMatch = requestUrl.pathname.match(/^\/v1\/nga\/wallpapers\/([\w-]+)$/);
+      if (ngaMatch) {
+        const wallpaper = await ngaClient.getById(ngaMatch[1]);
+        sendJson(response, wallpaper ? 200 : 404, wallpaper ? { data: withDownloadUrl(wallpaper, origin) } : { error: "not_found" });
         return;
       }
 
@@ -70,6 +110,27 @@ function sendJson(response, statusCode, payload) {
     "Access-Control-Allow-Origin": "*"
   });
   response.end(JSON.stringify(payload, null, 2));
+}
+
+function sendImageRedirect(response, wallpaper, width) {
+  const imageUrl = getSizedNgaImageUrl(wallpaper, width);
+  if (!imageUrl) {
+    sendJson(response, 404, { error: "not_found" });
+    return;
+  }
+
+  response.writeHead(302, {
+    Location: imageUrl,
+    "Cache-Control": "no-store"
+  });
+  response.end();
+}
+
+function withDownloadUrl(wallpaper, origin) {
+  return {
+    ...wallpaper,
+    downloadUrl: `${origin}/v1/nga/wallpapers/${wallpaper.id}.jpg`
+  };
 }
 
 async function sendStatic(response, pathname) {

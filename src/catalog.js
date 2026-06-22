@@ -39,7 +39,10 @@ export function getManifest(baseUrl) {
     endpoints: {
       health: `${baseUrl}/health`,
       wallpapers: `${baseUrl}/v1/wallpapers`,
-      random: `${baseUrl}/v1/wallpapers/random`
+      random: `${baseUrl}/v1/wallpapers/random`,
+      ngaWallpapers: `${baseUrl}/v1/nga/wallpapers`,
+      ngaRandom: `${baseUrl}/v1/nga/wallpapers/random`,
+      ngaRandomImage: `${baseUrl}/v1/nga/wallpapers/random.jpg`
     },
     supportedFilters: {
       category: uniqueValues("category"),
