@@ -1,0 +1,23 @@
+{
+  "name": "ambiart",
+  "version": "0.1.0",
+  "description": "A lightweight Google TV-friendly wallpaper API for ambient art screens.",
+  "type": "module",
+  "private": false,
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test"
+  },
+  "keywords": [
+    "google-tv",
+    "wallpaper",
+    "ambient",
+    "api",
+    "art"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  }
+}

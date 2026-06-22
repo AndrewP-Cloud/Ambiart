@@ -1,0 +1,46 @@
+[
+  {
+    "id": "aurora-drift",
+    "title": "Aurora Drift",
+    "artist": "Ambiart Studio",
+    "category": "nature",
+    "orientation": "landscape",
+    "dominantColor": "#223c5f",
+    "imageUrl": "https://images.unsplash.com/photo-1483347756197-71ef80e95f73?auto=format&fit=crop&w=3840&q=85",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1483347756197-71ef80e95f73?auto=format&fit=crop&w=640&q=70",
+    "attribution": "Photo via Unsplash"
+  },
+  {
+    "id": "desert-glass",
+    "title": "Desert Glass",
+    "artist": "Ambiart Studio",
+    "category": "abstract",
+    "orientation": "landscape",
+    "dominantColor": "#c98555",
+    "imageUrl": "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=3840&q=85",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=640&q=70",
+    "attribution": "Photo via Unsplash"
+  },
+  {
+    "id": "city-afterglow",
+    "title": "City Afterglow",
+    "artist": "Ambiart Studio",
+    "category": "urban",
+    "orientation": "landscape",
+    "dominantColor": "#2d3748",
+    "imageUrl": "https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=3840&q=85",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=640&q=70",
+    "attribution": "Photo via Unsplash"
+  },
+  {
+    "id": "quiet-orbit",
+    "title": "Quiet Orbit",
+    "artist": "Ambiart Studio",
+    "category": "space",
+    "orientation": "landscape",
+    "dominantColor": "#111827",
+    "imageUrl": "https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?auto=format&fit=crop&w=3840&q=85",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?auto=format&fit=crop&w=640&q=70",
+    "attribution": "Photo via Unsplash"
+  }
+]

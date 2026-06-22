@@ -1,0 +1,63 @@
+openapi: 3.1.0
+info:
+  title: Ambiart Wallpaper API
+  version: 0.1.0
+  description: Lightweight API for Google TV-style ambient wallpaper clients.
+servers:
+  - url: http://localhost:8787
+paths:
+  /health:
+    get:
+      summary: Service health
+      responses:
+        "200":
+          description: Service status
+  /v1/manifest:
+    get:
+      summary: API manifest
+      responses:
+        "200":
+          description: API capability manifest
+  /v1/wallpapers:
+    get:
+      summary: List wallpapers
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: orientation
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: Wallpaper list
+  /v1/wallpapers/random:
+    get:
+      summary: Random wallpaper
+      responses:
+        "200":
+          description: Wallpaper response
+        "404":
+          description: No wallpaper matched filters
+  /v1/wallpapers/{id}:
+    get:
+      summary: Get wallpaper by id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Wallpaper response
+        "404":
+          description: Wallpaper not found
