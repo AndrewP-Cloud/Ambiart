@@ -17,7 +17,13 @@ test("health endpoint responds", async () => {
 });
 
 test("unknown wallpaper returns 404", async () => {
-  const { baseUrl, close } = await listen();
+  const ngaClient = {
+    list: async () => [],
+    getById: async () => null,
+    options: async () => ({}),
+    random: async () => null
+  };
+  const { baseUrl, close } = await listen({ ngaClient });
 
   try {
     const response = await fetch(`${baseUrl}/v1/wallpapers/nope`);
@@ -25,6 +31,37 @@ test("unknown wallpaper returns 404", async () => {
 
     assert.equal(response.status, 404);
     assert.equal(payload.error, "not_found");
+  } finally {
+    await close();
+  }
+});
+
+test("generic wallpaper endpoint uses NGA provider", async () => {
+  const wallpaper = {
+    id: "nga-1-img-a",
+    title: "Blue, Green, and Red",
+    artist: "Alma Thomas",
+    source: "national-gallery-of-art",
+    metadata: {
+      iiifUrl: "https://api.nga.gov/iiif/img-a"
+    }
+  };
+  const ngaClient = {
+    list: async () => [wallpaper],
+    getById: async () => wallpaper,
+    options: async () => ({}),
+    random: async () => wallpaper
+  };
+  const { baseUrl, close } = await listen({ ngaClient });
+
+  try {
+    const response = await fetch(`${baseUrl}/v1/wallpapers?limit=1`);
+    const payload = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(payload.data[0].source, "national-gallery-of-art");
+    assert.equal(payload.data[0].downloadUrl, `${baseUrl}/v1/wallpapers/nga-1-img-a.jpg`);
+    assert.equal(payload.links.source, "https://www.nga.gov/artworks/free-images-and-open-access");
   } finally {
     await close();
   }

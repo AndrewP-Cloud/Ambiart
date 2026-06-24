@@ -2,14 +2,16 @@
 
 A google streaming OS wallpaper manager for National Gallery of Art artworks.
 
-Ambiart is a lightweight wallpaper API for Google TV-style ambient art screens. It serves curated image metadata, simple randomization, and TV-friendly response shapes, with optional National Gallery of Art Open Data integration.
+Ambiart is a lightweight wallpaper API for Google TV-style ambient art screens. It serves National Gallery of Art Open Access image metadata, simple randomization, and TV-friendly response shapes.
 
 ## Features
 
 - `GET /health` service status
-- `GET /v1/wallpapers` list wallpapers with optional filters
-- `GET /v1/wallpapers/random` return a random wallpaper
-- `GET /v1/wallpapers/:id` return one wallpaper
+- `GET /v1/wallpapers` list NGA Open Access wallpapers with optional filters
+- `GET /v1/wallpapers/random` return a random NGA Open Access wallpaper
+- `GET /v1/wallpapers/random.jpg` redirect directly to a TV-sized NGA JPEG
+- `GET /v1/wallpapers/:id` return one NGA Open Access wallpaper
+- `GET /v1/wallpapers/:id.jpg` redirect directly to a TV-sized NGA JPEG
 - `GET /v1/nga/wallpapers` list National Gallery of Art wallpapers
 - `GET /v1/nga/options` list available National Gallery filter values
 - `GET /v1/nga/wallpapers/random` return a random National Gallery artwork
@@ -46,10 +48,10 @@ The NGA URLs default to the official National Gallery of Art Open Data CSV files
 
 ## API Examples
 
-List wallpapers:
+List NGA Open Access wallpapers:
 
 ```bash
-curl "http://localhost:8787/v1/wallpapers?category=nature&orientation=landscape&limit=10"
+curl "http://localhost:8787/v1/wallpapers?artist=Claude%20Monet&category=painting&orientation=landscape&limit=10"
 ```
 
 Random wallpaper:
@@ -61,7 +63,7 @@ curl "http://localhost:8787/v1/wallpapers/random"
 Single wallpaper:
 
 ```bash
-curl "http://localhost:8787/v1/wallpapers/aurora-drift"
+curl "http://localhost:8787/v1/wallpapers/nga-17387-00007f61-4922-417b-8f27-893ea328206c"
 ```
 
 National Gallery artworks:
@@ -121,10 +123,10 @@ The script downloads a random landscape NGA image from Ambiart, pushes it to `/s
 
 ```json
 {
-  "id": "aurora-drift",
-  "title": "Aurora Drift",
-  "artist": "Ambiart Studio",
-  "category": "nature",
+  "id": "nga-17387-00007f61-4922-417b-8f27-893ea328206c",
+  "title": "National Gallery artwork",
+  "artist": "National Gallery of Art",
+  "category": "drawing",
   "orientation": "landscape",
   "dominantColor": "#223c5f",
   "imageUrl": "https://...",
@@ -143,7 +145,7 @@ The script downloads a random landscape NGA image from Ambiart, pushes it to `/s
 
 ## National Gallery of Art Data
 
-Ambiart uses the official [National Gallery of Art Open Data repository](https://github.com/NationalGalleryOfArt/opendata) and its [IIIF image API](https://api.nga.gov/iiif/). The NGA dataset is released as CSV under CC0 and contains records for 130,000+ artworks. Image files are not included in that dataset, but `published_images.csv` contains public IIIF image references that Ambiart exposes as `imageUrl` and `thumbnailUrl`.
+Ambiart uses the National Gallery of Art's [Free Images and Open Access](https://www.nga.gov/artworks/free-images-and-open-access) program, the official [National Gallery of Art Open Data repository](https://github.com/NationalGalleryOfArt/opendata), and NGA's [IIIF image API](https://api.nga.gov/iiif/). The Gallery makes more than 60,000 images available as free downloads and says images of those works are free of charge for commercial or non-commercial use. The Open Data dataset is released under CC0 and contains factual records for 130,000+ artworks and artists. Image files are not included in the CSV dataset, but `published_images.csv` contains public IIIF image references that Ambiart exposes as `imageUrl`, `thumbnailUrl`, and direct `.jpg` download routes.
 
 ### National Gallery Filter Options
 

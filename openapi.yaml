@@ -20,7 +20,7 @@ paths:
           description: API capability manifest
   /v1/wallpapers:
     get:
-      summary: List wallpapers
+      summary: List NGA Open Access wallpapers
       parameters:
         - name: category
           in: query
@@ -41,7 +41,7 @@ paths:
           description: Wallpaper list
   /v1/wallpapers/random:
     get:
-      summary: Random wallpaper
+      summary: Random NGA Open Access wallpaper
       responses:
         "200":
           description: Wallpaper response
@@ -49,7 +49,7 @@ paths:
           description: No wallpaper matched filters
   /v1/wallpapers/{id}:
     get:
-      summary: Get wallpaper by id
+      summary: Get NGA Open Access wallpaper by id
       parameters:
         - name: id
           in: path
@@ -59,6 +59,34 @@ paths:
       responses:
         "200":
           description: Wallpaper response
+        "404":
+          description: Wallpaper not found
+  /v1/wallpapers/random.jpg:
+    get:
+      summary: Redirect to a random NGA Open Access JPEG
+      responses:
+        "302":
+          description: Redirect to an NGA IIIF JPEG
+        "404":
+          description: No wallpaper matched filters
+  /v1/wallpapers/{id}.jpg:
+    get:
+      summary: Redirect to an NGA Open Access JPEG by id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: width
+          in: query
+          schema:
+            type: integer
+            minimum: 200
+            maximum: 4096
+      responses:
+        "302":
+          description: Redirect to an NGA IIIF JPEG
         "404":
           description: Wallpaper not found
   /v1/nga/wallpapers:
