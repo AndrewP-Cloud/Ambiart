@@ -7,13 +7,17 @@ const DEFAULT_LIMIT = 24;
 const MAX_LIMIT = 100;
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const DEFAULT_SCAN_LIMIT = 500;
+const DEFAULT_SEARCH_LIMIT = 200000;
+const DEFAULT_OBJECT_MATCH_LIMIT = 2000;
 
 export function createNgaClient({
   fetchImpl = globalThis.fetch,
   objectsUrl = process.env.NGA_OBJECTS_URL ?? NGA_OBJECTS_URL,
   imagesUrl = process.env.NGA_IMAGES_URL ?? NGA_IMAGES_URL,
   scanLimit = Number.parseInt(process.env.NGA_SCAN_LIMIT ?? `${DEFAULT_SCAN_LIMIT}`, 10),
-  objectScanLimit = Number.parseInt(process.env.NGA_OBJECT_SCAN_LIMIT ?? "200000", 10),
+  objectScanLimit = Number.parseInt(process.env.NGA_OBJECT_SCAN_LIMIT ?? `${DEFAULT_SEARCH_LIMIT}`, 10),
+  imageSearchLimit = Number.parseInt(process.env.NGA_IMAGE_SEARCH_LIMIT ?? `${DEFAULT_SEARCH_LIMIT}`, 10),
+  objectMatchLimit = Number.parseInt(process.env.NGA_OBJECT_MATCH_LIMIT ?? `${DEFAULT_OBJECT_MATCH_LIMIT}`, 10),
   cacheTtlMs = CACHE_TTL_MS
 } = {}) {
   if (!fetchImpl) {
@@ -45,25 +49,31 @@ export function createNgaClient({
 
   return {
     async list(query = {}) {
-      const wallpapers = await loadCatalog();
       const limit = clampLimit(query.limit);
       const artist = normalize(query.artist);
       const category = normalize(query.category);
       const orientation = normalize(query.orientation);
       const q = normalize(query.q);
 
+      if (artist || category || q) {
+        return searchWallpapers({ artist, category, orientation, q, limit });
+      }
+
+      const wallpapers = await loadCatalog();
       return wallpapers.filter((wallpaper) => {
-        const artistMatches = !artist || normalize(wallpaper.artist)?.includes(artist);
-        const categoryMatches = !category || getCategoryValues(wallpaper).includes(category);
         const orientationMatches = !orientation || wallpaper.orientation === orientation;
-        const queryMatches = !q || `${wallpaper.title} ${wallpaper.artist} ${wallpaper.category} ${wallpaper.metadata.assistiveText}`.toLowerCase().includes(q);
-        return artistMatches && categoryMatches && orientationMatches && queryMatches;
+        return orientationMatches;
       }).slice(0, limit);
     },
 
     async getById(id) {
       const wallpapers = await loadCatalog();
-      return wallpapers.find((wallpaper) => wallpaper.id === id) ?? null;
+      const wallpaper = wallpapers.find((item) => item.id === id);
+      if (wallpaper) {
+        return wallpaper;
+      }
+
+      return findWallpaperById(id);
     },
 
     async random(query = {}, random = Math.random) {
@@ -94,6 +104,62 @@ export function createNgaClient({
       cache = null;
     }
   };
+
+  async function searchWallpapers({ artist, category, orientation, q, limit }) {
+    const objectMatches = await fetchMatchingCsvRecords(
+      fetchImpl,
+      objectsUrl,
+      (object) => objectMatchesQuery(object, { artist, category, q }),
+      (matches) => matches.length >= objectMatchLimit,
+      objectScanLimit
+    );
+    const objectsById = new Map(objectMatches.map((object) => [read(object, "objectid", "objectID"), object]));
+    const objectIds = new Set(objectsById.keys());
+
+    if (objectIds.size === 0) {
+      return [];
+    }
+
+    const imageMatches = await fetchMatchingCsvRecords(
+      fetchImpl,
+      imagesUrl,
+      (image) => imageMatchesQuery(image, objectIds, { orientation, q }),
+      (matches) => matches.length >= limit,
+      imageSearchLimit
+    );
+
+    return imageMatches
+      .map((image) => mapImageToWallpaper(image, objectsById.get(read(image, "depictstmsobjectid", "depictsTmsObjectId"))))
+      .filter(Boolean)
+      .filter((wallpaper) => wallpaperMatchesQuery(wallpaper, { artist, category, orientation, q }))
+      .slice(0, limit);
+  }
+
+  async function findWallpaperById(id) {
+    const match = id.match(/^nga-(\d+)-(.+)$/);
+    if (!match) {
+      return null;
+    }
+
+    const [, objectId] = match;
+    const object = await fetchObjectById(fetchImpl, objectsUrl, objectId, objectScanLimit);
+    if (!object) {
+      return null;
+    }
+
+    const images = await fetchMatchingCsvRecords(
+      fetchImpl,
+      imagesUrl,
+      (image) => read(image, "depictstmsobjectid", "depictsTmsObjectId") === objectId,
+      (matches) => matches.length >= 50,
+      imageSearchLimit
+    );
+
+    return images
+      .map((image) => mapImageToWallpaper(image, object))
+      .filter(Boolean)
+      .find((wallpaper) => wallpaper.id === id) ?? null;
+  }
 }
 
 function mapImageToWallpaper(image, object = {}) {
@@ -161,6 +227,18 @@ async function fetchObjectsById(fetchImpl, url, objectIds, maxRows) {
   );
 
   return new Map(records.map((object) => [read(object, "objectid", "objectID"), object]));
+}
+
+async function fetchObjectById(fetchImpl, url, objectId, maxRows) {
+  const matches = await fetchMatchingCsvRecords(
+    fetchImpl,
+    url,
+    (row) => read(row, "objectid", "objectID") === objectId,
+    (records) => records.length >= 1,
+    maxRows
+  );
+
+  return matches[0] ?? null;
 }
 
 async function fetchCsvRecords(fetchImpl, url, maxRows) {
@@ -366,6 +444,62 @@ function toNumber(value) {
 
 function slug(value) {
   return String(value).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function objectMatchesQuery(object, { artist, category, q }) {
+  const artistMatches = !artist || normalize(read(object, "attribution"))?.includes(artist);
+  const categoryMatches = !category || getObjectCategoryValues(object).includes(category);
+  const queryText = [
+    read(object, "title"),
+    read(object, "attribution"),
+    read(object, "classification"),
+    read(object, "subclassification", "subClassification"),
+    read(object, "visualbrowserclassification", "visualBrowserClassification"),
+    read(object, "medium"),
+    read(object, "displaydate", "displayDate")
+  ].join(" ").toLowerCase();
+  const queryMatches = !q || queryText.includes(q);
+
+  return artistMatches && categoryMatches && queryMatches;
+}
+
+function imageMatchesQuery(image, objectIds, { orientation }) {
+  const objectId = read(image, "depictstmsobjectid", "depictsTmsObjectId");
+  if (!objectIds.has(objectId)) {
+    return false;
+  }
+
+  const openAccess = read(image, "openaccess", "openAccess");
+  if (openAccess === "0") {
+    return false;
+  }
+
+  const iiifUrl = read(image, "iiifurl", "iiifURL", "imageurl", "imageURL", "url");
+  if (!iiifUrl) {
+    return false;
+  }
+
+  const width = toNumber(read(image, "width"));
+  const height = toNumber(read(image, "height"));
+  const orientationMatches = !orientation || getOrientation(width, height) === orientation;
+  return orientationMatches;
+}
+
+function wallpaperMatchesQuery(wallpaper, { artist, category, orientation, q }) {
+  const artistMatches = !artist || normalize(wallpaper.artist)?.includes(artist);
+  const categoryMatches = !category || getCategoryValues(wallpaper).includes(category);
+  const orientationMatches = !orientation || wallpaper.orientation === orientation;
+  const queryMatches = !q || `${wallpaper.title} ${wallpaper.artist} ${wallpaper.category} ${wallpaper.metadata.assistiveText} ${wallpaper.metadata.medium} ${wallpaper.metadata.date}`.toLowerCase().includes(q);
+
+  return artistMatches && categoryMatches && orientationMatches && queryMatches;
+}
+
+function getObjectCategoryValues(object) {
+  return uniqueValues([
+    read(object, "classification"),
+    read(object, "subclassification", "subClassification"),
+    read(object, "visualbrowserclassification", "visualBrowserClassification")
+  ]).map(normalize).filter(Boolean);
 }
 
 function getCategoryValues(wallpaper) {

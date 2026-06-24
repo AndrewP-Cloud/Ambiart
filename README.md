@@ -40,11 +40,15 @@ NGA_IMAGES_URL=https://raw.githubusercontent.com/NationalGalleryOfArt/opendata/m
 NGA_OBJECTS_URL=https://raw.githubusercontent.com/NationalGalleryOfArt/opendata/main/data/objects.csv
 NGA_SCAN_LIMIT=500
 NGA_OBJECT_SCAN_LIMIT=200000
+NGA_IMAGE_SEARCH_LIMIT=200000
+NGA_OBJECT_MATCH_LIMIT=2000
 ```
 
 `AMBIART_BASE_URL` is used when clients need absolute image and API URLs.
 
-The NGA URLs default to the official National Gallery of Art Open Data CSV files on GitHub. Ambiart streams a bounded slice of `published_images.csv`, finds matching records in `objects.csv`, maps each row into the wallpaper shape, builds TV-friendly IIIF image URLs, and caches the result in memory for six hours. Increase `NGA_SCAN_LIMIT` if you want Ambiart to scan deeper into the image dataset.
+The NGA URLs default to the official National Gallery of Art Open Data CSV files on GitHub. For unfiltered browsing, Ambiart streams a bounded slice of `published_images.csv`, finds matching records in `objects.csv`, maps each row into the wallpaper shape, builds TV-friendly IIIF image URLs, and caches the result in memory for six hours.
+
+Targeted searches for `artist`, `category`, or `q` scan object metadata first, then search the image feed for matching object IDs. Tune `NGA_OBJECT_SCAN_LIMIT`, `NGA_IMAGE_SEARCH_LIMIT`, and `NGA_OBJECT_MATCH_LIMIT` if you need deeper or broader artist/category searches.
 
 ## API Examples
 
@@ -149,7 +153,7 @@ Ambiart uses the National Gallery of Art's [Free Images and Open Access](https:/
 
 ### National Gallery Filter Options
 
-Ambiart exposes the current filter values from the scanned NGA feed at `GET /v1/nga/options`. Because the NGA dataset is updated frequently and Ambiart intentionally scans a bounded image window, these options can change when `NGA_SCAN_LIMIT` changes or the upstream CSV refreshes.
+Ambiart exposes the current filter values from the unfiltered NGA browse cache at `GET /v1/nga/options`. Because the NGA dataset is updated frequently and Ambiart intentionally keeps the browse cache bounded, these options can change when `NGA_SCAN_LIMIT` changes or the upstream CSV refreshes. Artist/category searches are not limited to only those option values; they use the deeper metadata search path.
 
 Supported query parameters for `GET /v1/nga/wallpapers`, `GET /v1/nga/wallpapers/random`, and `GET /v1/nga/wallpapers/random.jpg`:
 

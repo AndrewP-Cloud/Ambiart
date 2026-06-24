@@ -130,7 +130,7 @@ paths:
       summary: List available National Gallery of Art filter options
       responses:
         "200":
-          description: Available artist, category, and orientation filter values from the scanned NGA feed
+          description: Available artist, category, and orientation filter values from the bounded unfiltered browse cache. Targeted searches can find values beyond this cache.
   /v1/nga/wallpapers/random:
     get:
       summary: Random National Gallery of Art wallpaper
