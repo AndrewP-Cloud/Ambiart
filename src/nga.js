@@ -9,6 +9,7 @@ const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const DEFAULT_SCAN_LIMIT = 500;
 const DEFAULT_SEARCH_LIMIT = 200000;
 const DEFAULT_OBJECT_MATCH_LIMIT = 2000;
+const DEFAULT_RANDOM_POOL_SIZE = 5;
 
 export function createNgaClient({
   fetchImpl = globalThis.fetch,
@@ -18,6 +19,7 @@ export function createNgaClient({
   objectScanLimit = Number.parseInt(process.env.NGA_OBJECT_SCAN_LIMIT ?? `${DEFAULT_SEARCH_LIMIT}`, 10),
   imageSearchLimit = Number.parseInt(process.env.NGA_IMAGE_SEARCH_LIMIT ?? `${DEFAULT_SEARCH_LIMIT}`, 10),
   objectMatchLimit = Number.parseInt(process.env.NGA_OBJECT_MATCH_LIMIT ?? `${DEFAULT_OBJECT_MATCH_LIMIT}`, 10),
+  randomPoolSize = Number.parseInt(process.env.NGA_RANDOM_POOL_SIZE ?? `${DEFAULT_RANDOM_POOL_SIZE}`, 10),
   cacheTtlMs = CACHE_TTL_MS
 } = {}) {
   if (!fetchImpl) {
@@ -25,6 +27,7 @@ export function createNgaClient({
   }
 
   let cache = null;
+  const randomPools = new Map();
 
   async function loadCatalog() {
     const now = Date.now();
@@ -77,12 +80,7 @@ export function createNgaClient({
     },
 
     async random(query = {}, random = Math.random) {
-      const wallpapers = await this.list({ ...query, limit: MAX_LIMIT });
-      if (wallpapers.length === 0) {
-        return null;
-      }
-
-      return wallpapers[Math.floor(random() * wallpapers.length)];
+      return getNextRandomWallpaper(query, random, this.list.bind(this));
     },
 
     async options() {
@@ -102,8 +100,66 @@ export function createNgaClient({
 
     clearCache() {
       cache = null;
+      randomPools.clear();
     }
   };
+
+  async function getNextRandomWallpaper(query, random, listWallpapers) {
+    const key = getRandomPoolKey(query);
+    let state = randomPools.get(key);
+
+    if (!state) {
+      state = await createRandomPoolState(query, random, listWallpapers);
+      randomPools.set(key, state);
+    }
+
+    if (state.sets[state.activeSet].length === 0) {
+      return null;
+    }
+
+    if (state.cursor >= state.sets[state.activeSet].length) {
+      const exhaustedSet = state.activeSet;
+      state.activeSet = state.activeSet === 0 ? 1 : 0;
+      state.cursor = 0;
+      state.sets[exhaustedSet] = await buildRandomPool(query, random, listWallpapers, state.sets[state.activeSet]);
+    }
+
+    if (state.sets[state.activeSet].length === 0) {
+      const inactiveSet = state.activeSet === 0 ? 1 : 0;
+      state.sets[state.activeSet] = await buildRandomPool(query, random, listWallpapers, state.sets[inactiveSet]);
+    }
+
+    return state.sets[state.activeSet][state.cursor++] ?? null;
+  }
+
+  async function createRandomPoolState(query, random, listWallpapers) {
+    const firstSet = await buildRandomPool(query, random, listWallpapers);
+    const secondSet = await buildRandomPool(query, random, listWallpapers, firstSet);
+
+    return {
+      activeSet: 0,
+      cursor: 0,
+      sets: [firstSet, secondSet]
+    };
+  }
+
+  async function buildRandomPool(query, random, listWallpapers, avoidWallpapers = []) {
+    const candidateLimit = Math.max(MAX_LIMIT, getRandomPoolSize() * 4);
+    const candidates = await listWallpapers({ ...query, limit: candidateLimit });
+    const avoidIds = new Set(avoidWallpapers.map((wallpaper) => wallpaper.id));
+    const preferred = candidates.filter((wallpaper) => !avoidIds.has(wallpaper.id));
+    const poolSource = preferred.length > 0 ? preferred : candidates;
+
+    return shuffle(poolSource, random).slice(0, getRandomPoolSize());
+  }
+
+  function getRandomPoolSize() {
+    if (Number.isNaN(randomPoolSize)) {
+      return DEFAULT_RANDOM_POOL_SIZE;
+    }
+
+    return Math.max(1, randomPoolSize);
+  }
 
   async function searchWallpapers({ artist, category, orientation, q, limit }) {
     const objectMatches = await fetchMatchingCsvRecords(
@@ -513,6 +569,28 @@ function getCategoryValues(wallpaper) {
 
 function uniqueValues(values) {
   return [...new Set(values.filter(Boolean))].sort((left, right) => left.localeCompare(right));
+}
+
+function getRandomPoolKey(query = {}) {
+  const filters = {
+    artist: normalize(query.artist) ?? "",
+    category: normalize(query.category) ?? "",
+    orientation: normalize(query.orientation) ?? "",
+    q: normalize(query.q) ?? ""
+  };
+
+  return JSON.stringify(filters);
+}
+
+function shuffle(values, random) {
+  const shuffled = [...values];
+
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+
+  return shuffled;
 }
 
 function getIiifImageUrl(iiifUrl, width) {

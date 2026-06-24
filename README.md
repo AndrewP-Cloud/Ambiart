@@ -42,6 +42,7 @@ NGA_SCAN_LIMIT=500
 NGA_OBJECT_SCAN_LIMIT=200000
 NGA_IMAGE_SEARCH_LIMIT=200000
 NGA_OBJECT_MATCH_LIMIT=2000
+NGA_RANDOM_POOL_SIZE=5
 ```
 
 `AMBIART_BASE_URL` is used when clients need absolute image and API URLs.
@@ -49,6 +50,8 @@ NGA_OBJECT_MATCH_LIMIT=2000
 The NGA URLs default to the official National Gallery of Art Open Data CSV files on GitHub. For unfiltered browsing, Ambiart streams a bounded slice of `published_images.csv`, finds matching records in `objects.csv`, maps each row into the wallpaper shape, builds TV-friendly IIIF image URLs, and caches the result in memory for six hours.
 
 Targeted searches for `artist`, `category`, or `q` scan object metadata first, then search the image feed for matching object IDs. Tune `NGA_OBJECT_SCAN_LIMIT`, `NGA_IMAGE_SEARCH_LIMIT`, and `NGA_OBJECT_MATCH_LIMIT` if you need deeper or broader artist/category searches.
+
+Random wallpaper requests use two rolling selection pools per filter combination. Each pool defaults to `NGA_RANDOM_POOL_SIZE=5`. Ambiart returns each item in the active pool once, swaps to the other pool when exhausted, then refreshes the exhausted pool from the already-constrained search result set. The expensive NGA CSV data cache still lasts six hours by default; only the small random selection pools roll during requests.
 
 ## API Examples
 
